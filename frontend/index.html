@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Networking Components Demo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <h1>Networking Components Demo</h1>
+      <p class="subtitle">Forward Proxy · Load Balancer · Reverse Proxy · API Gateway · CDN</p>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="forward-proxy">Forward Proxy</button>
+    <button class="tab" data-tab="load-balancer">Load Balancer</button>
+    <button class="tab" data-tab="reverse-proxy">Reverse Proxy</button>
+    <button class="tab" data-tab="api-gateway">API Gateway</button>
+    <button class="tab" data-tab="cdn">CDN</button>
+  </nav>
+
+  <main class="main">
+    <!-- Overview -->
+    <section id="overview" class="panel active">
+      <h2>Architecture Overview</h2>
+      <p class="lead">Interactive demo of five core networking components using Nginx. Each tab lets you send live requests and inspect responses.</p>
+
+      <div class="architecture-diagram">
+        <pre>
+┌──────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Client  │────▶│ Forward Proxy   │────▶│   Internet /     │
+│ (Browser)│     │  :3128          │     │   Backend        │
+└──────────┘     └─────────────────┘     └──────────────────┘
+
+┌──────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Client  │────▶│ Load Balancer   │────▶│ backend-1/2/3    │
+│          │     │  :8081          │     │ (round-robin)    │
+└──────────┘     └─────────────────┘     └──────────────────┘
+
+┌──────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Client  │────▶│ Reverse Proxy   │────▶│ backend-1        │
+│          │     │  :8082          │     │ (hidden)         │
+└──────────┘     └─────────────────┘     └──────────────────┘
+
+┌──────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Client  │────▶│ API Gateway     │────▶│ users/products/  │
+│          │     │  :8083          │     │ orders services  │
+└──────────┘     └─────────────────┘     └──────────────────┘
+
+┌──────────┐     ┌─────────────────┐     ┌──────────────────┐
+│  Client  │────▶│ CDN Edge        │────▶│ Origin Server    │
+│          │     │  :8084 (cached) │     │ (static assets)  │
+└──────────┘     └─────────────────┘     └──────────────────┘
+        </pre>
+      </div>
+
+      <div class="card-grid">
+        <div class="card"><h3>Forward Proxy</h3><p>Proxies outbound client requests. Used in corporate networks for filtering and logging.</p><code>:3128</code></div>
+        <div class="card"><h3>Load Balancer</h3><p>Distributes traffic across multiple servers. Amazon ELB, YouTube front-ends.</p><code>:8081</code></div>
+        <div class="card"><h3>Reverse Proxy</h3><p>Sits in front of servers, hides backend details. SSL termination, caching.</p><code>:8082</code></div>
+        <div class="card"><h3>API Gateway</h3><p>Single entry for microservices. Routing, auth, rate limiting. Amazon API Gateway.</p><code>:8083</code></div>
+        <div class="card"><h3>CDN</h3><p>Caches content at edge locations. CloudFront, Cloudflare, Netflix Open Connect.</p><code>:8084</code></div>
+      </div>
+
+      <div class="real-world">
+        <h3>Real-World Examples</h3>
+        <ul>
+          <li><strong>Netflix</strong> — CDN (Open Connect) + API Gateway + Load Balancers across regions</li>
+          <li><strong>YouTube</strong> — Global CDN caches video chunks at edge PoPs</li>
+          <li><strong>Amazon</strong> — ALB/ELB load balancing, CloudFront CDN, API Gateway for AWS services</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Forward Proxy -->
+    <section id="forward-proxy" class="panel">
+      <h2>Forward Proxy <span class="badge">:3128</span></h2>
+      <p class="lead">A forward proxy acts on behalf of <em>clients</em>. Your browser/app sends requests to the proxy, which forwards them to the destination. The server never sees your real IP directly.</p>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Client → Forward Proxy → Target Server. Used for outbound traffic control, content filtering, and anonymization in corporate networks.
+      </div>
+
+      <div class="demo-controls">
+        <label>Target URL (internal backend via proxy)</label>
+        <input type="text" id="fp-url" value="http://localhost:3128/proxy/load-balancer/api/info" readonly>
+        <p class="hint">Client → Forward Proxy (:3128) → Load Balancer → Backends. Try: <code>curl http://localhost:3128/proxy/load-balancer/api/info</code></p>
+        <button class="btn primary" onclick="demoForwardProxy()">Send via Forward Proxy</button>
+        <button class="btn" onclick="fetchDirect('http://localhost:8081/api/info', 'fp-result')">Compare: Direct to Load Balancer</button>
+      </div>
+
+      <div class="config-block">
+        <h3>Nginx Config Highlights</h3>
+        <pre><code># nginx/forward-proxy/nginx.conf
+# Route: /proxy/&lt;host&gt;/&lt;path&gt; → http://&lt;host&gt;&lt;path&gt;
+location ~ ^/proxy/([^/]+)(/.*)$ {
+    proxy_pass http://$upstream_host$upstream_path;
+    proxy_set_header Via "nginx-forward-proxy";
+}
+# Production: proxy_connect module for curl -x support</code></pre>
+      </div>
+
+      <div id="fp-result" class="result-box empty">Click a button to see results…</div>
+    </section>
+
+    <!-- Load Balancer -->
+    <section id="load-balancer" class="panel">
+      <h2>Load Balancer <span class="badge">:8081</span></h2>
+      <p class="lead">Distributes incoming requests across 3 backend instances using round-robin. Each click should hit a different server.</p>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Client → Load Balancer → [backend-1, backend-2, backend-3]. Amazon ELB, NGINX upstream, HAProxy.
+      </div>
+
+      <div class="demo-controls">
+        <button class="btn primary" onclick="fetchLB()">Send Request (×1)</button>
+        <button class="btn" onclick="fetchLBMultiple(10)">Send 10 Requests (see distribution)</button>
+        <button class="btn" onclick="fetchJSON('http://localhost:8081/lb-status', 'lb-result')">Get LB Status</button>
+      </div>
+
+      <div class="config-block">
+        <h3>Nginx Config Highlights</h3>
+        <pre><code># nginx/load-balancer/nginx.conf
+resolver 127.0.0.11 valid=10s;          # Docker DNS
+set $backend_upstream backend:3000;
+proxy_pass http://$backend_upstream;    # runtime DNS → round-robin</code></pre>
+      </div>
+
+      <div id="lb-result" class="result-box empty">Click a button to see results…</div>
+      <div id="lb-chart" class="distribution-chart hidden"></div>
+    </section>
+
+    <!-- Reverse Proxy -->
+    <section id="reverse-proxy" class="panel">
+      <h2>Reverse Proxy <span class="badge">:8082</span></h2>
+      <p class="lead">Sits in front of backend servers. Clients talk to the proxy; the proxy talks to the backend. Backend identity is concealed.</p>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Client → Reverse Proxy → Backend. Used for SSL termination, load balancing, caching, and security (WAF).
+      </div>
+
+      <div class="demo-controls">
+        <button class="btn primary" onclick="fetchJSON('http://localhost:8082/api/info', 'rp-result')">Request via Reverse Proxy</button>
+        <button class="btn" onclick="fetchDirect('http://localhost:3001/api/info', 'rp-result')">Compare: Direct to Backend (port 3001)</button>
+        <button class="btn" onclick="fetchJSON('http://localhost:8082/rp-status', 'rp-result')">Get RP Status</button>
+      </div>
+
+      <div class="config-block">
+        <h3>Nginx Config Highlights</h3>
+        <pre><code># nginx/reverse-proxy/nginx.conf
+proxy_pass http://backend-1:3000;
+proxy_hide_header X-Powered-By;     # conceal backend
+proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</code></pre>
+      </div>
+
+      <div id="rp-result" class="result-box empty">Click a button to see results…</div>
+    </section>
+
+    <!-- API Gateway -->
+    <section id="api-gateway" class="panel">
+      <h2>API Gateway <span class="badge">:8083</span></h2>
+      <p class="lead">Single entry point routing to microservices with API key authentication and rate limiting (10 req/min per IP).</p>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Client → API Gateway → [users-service, products-service, orders-service]. Handles auth, routing, throttling, CORS.
+      </div>
+
+      <div class="demo-controls">
+        <label>API Key</label>
+        <input type="text" id="api-key" value="demo-key-123">
+        <div class="btn-row">
+          <button class="btn primary" onclick="fetchGateway('/api/users')">GET /api/users</button>
+          <button class="btn primary" onclick="fetchGateway('/api/products')">GET /api/products</button>
+          <button class="btn primary" onclick="fetchGateway('/api/orders')">GET /api/orders</button>
+          <button class="btn" onclick="fetchGateway('/api/users', 'bad-key')">Test Invalid Key</button>
+          <button class="btn" onclick="fetchJSON('http://localhost:8083/gateway/status', 'gw-result')">Gateway Status</button>
+        </div>
+      </div>
+
+      <div class="config-block">
+        <h3>Nginx Config Highlights</h3>
+        <pre><code># nginx/api-gateway/nginx.conf
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/m;
+map $http_x_api_key $api_key_valid { "demo-key-123" 1; }
+location /api/users { proxy_pass http://users-service:3000/api/users; }</code></pre>
+      </div>
+
+      <div id="gw-result" class="result-box empty">Click a button to see results…</div>
+    </section>
+
+    <!-- CDN -->
+    <section id="cdn" class="panel">
+      <h2>CDN (Content Delivery Network) <span class="badge">:8084</span></h2>
+      <p class="lead">Edge server caches static assets. First request = MISS (fetches from origin). Subsequent requests = HIT (served from cache).</p>
+
+      <div class="info-box">
+        <strong>How it works:</strong> Client → CDN Edge (cached) → Origin Server. CloudFront, Cloudflare, Akamai cache static content globally.
+      </div>
+
+      <div class="demo-controls">
+        <button class="btn primary" onclick="fetchCDN('/assets/demo.css')">Fetch Cached CSS</button>
+        <button class="btn primary" onclick="fetchCDN('/assets/demo.js')">Fetch Cached JS</button>
+        <button class="btn" onclick="fetchCDN('/assets/demo.css', true)">Fetch Same Asset Again (expect HIT)</button>
+        <button class="btn" onclick="fetchCDN('/api/asset-info')">Fetch API (BYPASS cache)</button>
+        <button class="btn" onclick="fetchJSON('http://localhost:8084/cdn-status', 'cdn-result')">CDN Status</button>
+      </div>
+
+      <div class="config-block">
+        <h3>Nginx Config Highlights</h3>
+        <pre><code># nginx/cdn/nginx.conf
+proxy_cache_path /var/cache/nginx keys_zone=static_cache:10m;
+proxy_cache static_cache;
+proxy_cache_valid 200 10m;
+add_header X-Cache-Status $upstream_cache_status;</code></pre>
+      </div>
+
+      <div id="cdn-result" class="result-box empty">Click a button to see results…</div>
+      <div id="cdn-cache-log" class="cache-log"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Networking Components Demo · Nginx · Docker Compose · <a href="https://nginx.org/en/docs/" target="_blank">Nginx Docs</a></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

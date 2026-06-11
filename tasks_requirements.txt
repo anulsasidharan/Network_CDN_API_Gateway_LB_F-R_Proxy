@@ -1,0 +1,25 @@
+Title
+
+Load Balancer, Reverse Proxy, API Gateway and CDN Explained
+
+What to Cover
+Load Balancer
+Reverse Proxy
+Forward Proxy
+API Gateway
+CDN
+Practical
+
+Use:
+
+Nginx Reverse Proxy
+
+Demonstrate:
+
+Traffic routing
+Real Examples
+Netflix
+YouTube
+Amazon
+Deliverables
+Complete architecture diagram

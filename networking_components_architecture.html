@@ -1,0 +1,1118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Load Balancer, Reverse Proxy, API Gateway &amp; CDN Explained</title>
+  <style>
+    :root {
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+      --color-text-primary: #1a1a1a;
+      --color-text-secondary: #4a4a4a;
+      --color-text-tertiary: #6b6b6b;
+      --color-text-info: #185fa5;
+      --color-text-danger: #a32d2d;
+      --color-background-primary: #ffffff;
+      --color-background-secondary: #f5f5f5;
+      --color-background-info: #e6f1fb;
+      --color-background-danger: #fcebeb;
+      --color-border-primary: #d4d4d4;
+      --color-border-secondary: #c8c8c8;
+      --color-border-tertiary: #e8e8e8;
+      --border-radius-sm: 6px;
+      --border-radius-md: 10px;
+      --border-radius-lg: 14px;
+      --accent: #185fa5;
+      --slide-padding: clamp(20px, 4vw, 48px);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-text-primary: #f0f0f0;
+        --color-text-secondary: #b8b8b8;
+        --color-text-tertiary: #8a8a8a;
+        --color-text-info: #6cb3f5;
+        --color-text-danger: #f08080;
+        --color-background-primary: #1e1e1e;
+        --color-background-secondary: #2a2a2a;
+        --color-background-info: #1a3a5c;
+        --color-background-danger: #3d1f1f;
+        --color-border-primary: #444;
+        --color-border-secondary: #555;
+        --color-border-tertiary: #383838;
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--color-text-primary);
+      background: var(--color-background-primary);
+      min-height: 100vh;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* ── Presentation shell ── */
+    .presentation {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: var(--slide-padding);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .presentation-header {
+      margin-bottom: clamp(16px, 3vw, 28px);
+    }
+
+    .presentation-title {
+      font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .presentation-subtitle {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      color: var(--color-text-secondary);
+      margin-top: 6px;
+    }
+
+    /* ── Progress bar ── */
+    .progress-bar {
+      height: 4px;
+      background: var(--color-border-tertiary);
+      border-radius: 2px;
+      margin: 16px 0 0;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.35s ease;
+    }
+
+    /* ── Navigation ── */
+    .nav {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 0 0 18px;
+      border-bottom: 1px solid var(--color-border-tertiary);
+      margin-bottom: clamp(20px, 3vw, 32px);
+    }
+
+    .nav-btn {
+      padding: 10px 18px;
+      font-size: clamp(0.9rem, 1.8vw, 1.05rem);
+      font-weight: 600;
+      border: 1px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    .nav-btn:hover {
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+      transform: translateY(-1px);
+    }
+
+    .nav-btn.active {
+      background: var(--color-background-info);
+      color: var(--color-text-info);
+      border-color: transparent;
+    }
+
+    .nav-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ── Slide panels ── */
+    .slide-area {
+      flex: 1;
+      position: relative;
+    }
+
+    .panel {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .panel.active { display: block; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .section-label {
+      font-size: clamp(0.8rem, 1.5vw, 0.95rem);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .section-intro {
+      font-size: clamp(1.05rem, 2vw, 1.2rem);
+      color: var(--color-text-secondary);
+      margin-bottom: 20px;
+      max-width: 72ch;
+    }
+
+    /* ── Chips ── */
+    .chip {
+      display: inline-block;
+      font-size: 0.85rem;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .chip-blue   { background: var(--color-background-info); color: var(--color-text-info); }
+    .chip-teal   { background: #E1F5EE; color: #0F6E56; }
+    .chip-amber  { background: #FAEEDA; color: #854F0B; }
+    .chip-red    { background: var(--color-background-danger); color: var(--color-text-danger); }
+    .chip-purple { background: #EEEDFE; color: #534AB7; }
+
+    @media (prefers-color-scheme: dark) {
+      .chip-teal   { background: #085041; color: #9FE1CB; }
+      .chip-amber  { background: #633806; color: #FAC775; }
+      .chip-purple { background: #26215C; color: #AFA9EC; }
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--color-background-primary);
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: clamp(16px, 2.5vw, 22px) clamp(18px, 3vw, 26px);
+      margin-bottom: 14px;
+      transition: border-color 0.2s;
+    }
+
+    .card:hover { border-color: var(--color-border-secondary); }
+
+    .card-title {
+      font-size: clamp(1.1rem, 2.2vw, 1.35rem);
+      font-weight: 700;
+      color: var(--color-text-primary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .card-body {
+      font-size: clamp(1rem, 1.8vw, 1.1rem);
+      color: var(--color-text-secondary);
+      line-height: 1.65;
+    }
+
+    .two-col  { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+    /* ── Feature rows ── */
+    .feature-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--color-border-tertiary);
+    }
+
+    .feature-row:last-child { border-bottom: none; }
+
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+
+    .dot-blue   { background: #378ADD; }
+    .dot-teal   { background: #1D9E75; }
+    .dot-amber  { background: #BA7517; }
+    .dot-purple { background: #7F77DD; }
+    .dot-red    { background: #E24B4A; }
+
+    /* ── Compare table ── */
+    .compare-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    .compare-row {
+      display: grid;
+      grid-template-columns: minmax(110px, 140px) 1fr 1fr;
+      gap: 0;
+      font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+      border-bottom: 1px solid var(--color-border-tertiary);
+      min-width: 480px;
+    }
+
+    .compare-row:last-child { border-bottom: none; }
+
+    .compare-cell { padding: 12px 14px; }
+
+    .compare-header {
+      background: var(--color-background-secondary);
+      font-weight: 700;
+      font-size: clamp(0.9rem, 1.5vw, 1rem);
+    }
+
+    /* ── Nginx code blocks ── */
+    .nginx-block {
+      background: var(--color-background-secondary);
+      border-radius: var(--border-radius-md);
+      padding: 16px 20px;
+      margin: 10px 0;
+      font-family: var(--font-mono);
+      font-size: clamp(0.85rem, 1.5vw, 0.95rem);
+      color: var(--color-text-primary);
+      line-height: 1.75;
+      overflow-x: auto;
+    }
+
+    .kw      { color: #378ADD; }
+    .val     { color: #1D9E75; }
+    .comment { color: var(--color-text-tertiary); }
+
+    /* ── Flow diagrams ── */
+    .flow-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 16px 0;
+      flex-wrap: wrap;
+    }
+
+    .flow-box {
+      padding: 12px 18px;
+      border-radius: var(--border-radius-md);
+      font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+      font-weight: 600;
+      text-align: center;
+      min-width: 100px;
+    }
+
+    .flow-arrow {
+      color: var(--color-text-tertiary);
+      font-size: 1.4rem;
+      padding: 0 8px;
+      font-weight: 300;
+    }
+
+    .flow-or {
+      font-size: 1rem;
+      color: var(--color-text-tertiary);
+      padding: 0 10px;
+    }
+
+    /* ── Architecture SVG container ── */
+    .diagram-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto 20px;
+      max-width: 820px;
+      padding: 16px;
+      background: var(--color-background-secondary);
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+    }
+
+    .diagram-wrap svg {
+      width: 100%;
+      height: auto;
+      max-height: min(42vh, 380px);
+      display: block;
+    }
+
+    .diagram-hint {
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--color-text-tertiary);
+      margin-bottom: 16px;
+    }
+
+    /* Interactive diagram nodes */
+    .diagram-node {
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .diagram-node:hover rect,
+    .diagram-node:hover ellipse {
+      filter: brightness(1.08);
+    }
+
+    .diagram-node:focus { outline: none; }
+    .diagram-node:focus-visible rect,
+    .diagram-node:focus-visible ellipse {
+      stroke-width: 2;
+    }
+
+    /* ── Real-world brand cards ── */
+    .realworld-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    .brand-card {
+      border: 1px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: clamp(16px, 2.5vw, 22px);
+      transition: border-color 0.2s, transform 0.15s;
+    }
+
+    .brand-card:hover {
+      border-color: var(--color-border-secondary);
+      transform: translateY(-2px);
+    }
+
+    .brand-name {
+      font-size: clamp(1.3rem, 2.5vw, 1.6rem);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .brand-item {
+      font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+      color: var(--color-text-secondary);
+      padding: 6px 0;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      line-height: 1.55;
+    }
+
+    .brand-item .dot { margin-top: 7px; }
+
+    /* ── Action buttons ── */
+    .action-btn {
+      padding: 12px 20px;
+      font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+      font-weight: 600;
+      border: 1px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: transparent;
+      color: var(--color-text-secondary);
+      cursor: pointer;
+      margin-top: 16px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .action-btn:hover {
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+    }
+
+    .action-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ── Footer navigation ── */
+    .slide-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: clamp(24px, 4vw, 40px);
+      padding-top: 20px;
+      border-top: 1px solid var(--color-border-tertiary);
+      flex-wrap: wrap;
+    }
+
+    .slide-counter {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--color-text-tertiary);
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .slide-nav-btn {
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: 1px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-md);
+      background: var(--color-background-secondary);
+      color: var(--color-text-primary);
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .slide-nav-btn:hover:not(:disabled) {
+      background: var(--color-background-info);
+      color: var(--color-text-info);
+      transform: translateY(-1px);
+    }
+
+    .slide-nav-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .slide-nav-btn:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .keyboard-hint {
+      font-size: 0.85rem;
+      color: var(--color-text-tertiary);
+      text-align: center;
+      flex: 1;
+    }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      background: var(--color-background-secondary);
+      border: 1px solid var(--color-border-secondary);
+      border-radius: 4px;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 900px) {
+      .three-col,
+      .realworld-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .two-col,
+      .three-col,
+      .realworld-grid { grid-template-columns: 1fr; }
+
+      .nav { gap: 6px; }
+      .nav-btn { padding: 8px 12px; font-size: 0.85rem; }
+
+      .slide-footer { flex-direction: column; }
+      .keyboard-hint { order: -1; }
+
+      .diagram-wrap svg { max-height: 280px; }
+    }
+
+    /* ── Presentation / fullscreen mode ── */
+    @media (min-width: 1200px) and (min-height: 700px) {
+      .presentation { padding: 40px 56px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="presentation" id="presentation">
+
+  <header class="presentation-header">
+    <h1 class="presentation-title">Load Balancer, Reverse Proxy, API Gateway &amp; CDN</h1>
+    <p class="presentation-subtitle">Networking components explained — with Nginx configs and real-world examples</p>
+    <div class="progress-bar" role="progressbar" aria-valuenow="1" aria-valuemin="1" aria-valuemax="8" aria-label="Slide progress">
+      <div class="progress-fill" id="progress-fill" style="width:12.5%"></div>
+    </div>
+  </header>
+
+  <nav class="nav" role="tablist" aria-label="Presentation sections">
+    <button class="nav-btn active" role="tab" aria-selected="true"  aria-controls="panel-overview" data-slide="overview" id="tab-overview">Architecture</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-lb"       data-slide="lb">Load balancer</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-rp"       data-slide="rp">Reverse proxy</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-fp"       data-slide="fp">Forward proxy</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-gw"       data-slide="gw">API gateway</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-cdn"      data-slide="cdn">CDN</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-nginx"   data-slide="nginx">Nginx (practical)</button>
+    <button class="nav-btn" role="tab" aria-selected="false" aria-controls="panel-real"      data-slide="real">Real examples</button>
+  </nav>
+
+  <div class="slide-area">
+
+    <!-- OVERVIEW -->
+    <div id="panel-overview" class="panel active" role="tabpanel" aria-labelledby="tab-overview">
+      <div class="section-label">Complete architecture diagram</div>
+      <p class="section-intro">Where each component lives in the request path — click any node to jump to that section.</p>
+
+      <p class="diagram-hint">Click a component to explore it</p>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 640 420" role="img" aria-label="Full architecture overview showing request flow from client through CDN, forward proxy, API gateway, load balancer, and reverse proxy to backend servers">
+          <title>Full architecture overview</title>
+          <desc>Request flow from client through CDN, forward proxy, API gateway, load balancer, and reverse proxy to backend servers</desc>
+          <defs>
+            <marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </marker>
+          </defs>
+
+          <!-- Client -->
+          <g class="diagram-node" tabindex="0" data-goto="fp" aria-label="Client — jump to Forward proxy">
+            <ellipse cx="80" cy="210" rx="58" ry="34" fill="none" stroke="var(--color-border-secondary)" stroke-width="1" stroke-dasharray="4 3"/>
+            <text font-family="var(--font-sans)" font-size="15" font-weight="600" fill="var(--color-text-secondary)" x="80" y="207" text-anchor="middle">Client</text>
+            <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-tertiary)" x="80" y="224" text-anchor="middle">browser / app</text>
+          </g>
+
+          <!-- CDN -->
+          <g class="diagram-node" tabindex="0" data-goto="cdn" aria-label="CDN — jump to CDN section">
+            <rect x="168" y="185" width="76" height="50" rx="8" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1"/>
+            <text font-family="var(--font-sans)" font-size="15" font-weight="600" fill="#085041" x="206" y="210" text-anchor="middle">CDN</text>
+            <text font-family="var(--font-sans)" font-size="12" fill="#0F6E56" x="206" y="227" text-anchor="middle">edge cache</text>
+          </g>
+
+          <!-- Forward Proxy -->
+          <g class="diagram-node" tabindex="0" data-goto="fp" aria-label="Forward proxy — jump to Forward proxy section">
+            <rect x="168" y="110" width="76" height="50" rx="8" fill="#EEEDFE" stroke="#534AB7" stroke-width="1"/>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#26215C" x="206" y="133" text-anchor="middle">Forward</text>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#26215C" x="206" y="150" text-anchor="middle">proxy</text>
+          </g>
+
+          <!-- API Gateway -->
+          <g class="diagram-node" tabindex="0" data-goto="gw" aria-label="API gateway — jump to API gateway section">
+            <rect x="284" y="185" width="80" height="50" rx="8" fill="#FAEEDA" stroke="#BA7517" stroke-width="1"/>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#412402" x="324" y="208" text-anchor="middle">API</text>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#412402" x="324" y="225" text-anchor="middle">gateway</text>
+          </g>
+
+          <!-- Load Balancer -->
+          <g class="diagram-node" tabindex="0" data-goto="lb" aria-label="Load balancer — jump to Load balancer section">
+            <rect x="400" y="185" width="80" height="50" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="1"/>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#042C53" x="440" y="208" text-anchor="middle">Load</text>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#042C53" x="440" y="225" text-anchor="middle">balancer</text>
+          </g>
+
+          <!-- Reverse Proxy -->
+          <g class="diagram-node" tabindex="0" data-goto="rp" aria-label="Reverse proxy — jump to Reverse proxy section">
+            <rect x="516" y="150" width="80" height="44" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="1"/>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#501313" x="556" y="170" text-anchor="middle">Reverse</text>
+            <text font-family="var(--font-sans)" font-size="14" font-weight="600" fill="#501313" x="556" y="187" text-anchor="middle">proxy</text>
+          </g>
+
+          <!-- Backend servers -->
+          <rect x="516" y="218" width="50" height="30" rx="6" fill="var(--color-background-secondary)" stroke="var(--color-border-secondary)" stroke-width="1"/>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-secondary)" x="541" y="237" text-anchor="middle">Srv 1</text>
+          <rect x="574" y="218" width="50" height="30" rx="6" fill="var(--color-background-secondary)" stroke="var(--color-border-secondary)" stroke-width="1"/>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-secondary)" x="599" y="237" text-anchor="middle">Srv 2</text>
+          <rect x="516" y="258" width="50" height="30" rx="6" fill="var(--color-background-secondary)" stroke="var(--color-border-secondary)" stroke-width="1"/>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-secondary)" x="541" y="277" text-anchor="middle">Srv 3</text>
+          <rect x="574" y="258" width="50" height="30" rx="6" fill="var(--color-background-secondary)" stroke="var(--color-border-secondary)" stroke-width="1"/>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-secondary)" x="599" y="277" text-anchor="middle">Srv 4</text>
+
+          <!-- Arrows -->
+          <line x1="138" y1="210" x2="166" y2="210" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#a2)"/>
+          <path d="M138 196 Q153 160 166 135" stroke="#7F77DD" stroke-width="1.5" stroke-dasharray="4 2" fill="none" marker-end="url(#a2)"/>
+          <line x1="244" y1="210" x2="282" y2="210" stroke="#BA7517" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="364" y1="210" x2="398" y2="210" stroke="#185FA5" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="480" y1="200" x2="514" y2="180" stroke="#A32D2D" stroke-width="1.5" marker-end="url(#a2)"/>
+          <line x1="480" y1="216" x2="514" y2="230" stroke="var(--color-border-secondary)" stroke-width="1" stroke-dasharray="3 2" marker-end="url(#a2)"/>
+          <line x1="556" y1="194" x2="556" y2="216" stroke="#A32D2D" stroke-width="1.5" marker-end="url(#a2)"/>
+
+          <text font-family="var(--font-sans)" font-size="12" font-weight="500" fill="#1D9E75" x="248" y="198">cache hit</text>
+          <text font-family="var(--font-sans)" font-size="12" font-weight="500" fill="#1D9E75" x="248" y="212">→ served</text>
+
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-tertiary)" x="206" y="250" text-anchor="middle">outbound</text>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-tertiary)" x="324" y="250" text-anchor="middle">auth / rate limit</text>
+          <text font-family="var(--font-sans)" font-size="12" fill="var(--color-text-tertiary)" x="440" y="250" text-anchor="middle">distribute load</text>
+
+          <!-- Legend -->
+          <line x1="40" y1="330" x2="72" y2="330" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#a2)"/>
+          <text font-family="var(--font-sans)" font-size="13" fill="var(--color-text-secondary)" x="80" y="334">Cacheable / CDN path</text>
+          <line x1="40" y1="352" x2="72" y2="352" stroke="#7F77DD" stroke-width="1.5" stroke-dasharray="4 2" marker-end="url(#a2)"/>
+          <text font-family="var(--font-sans)" font-size="13" fill="var(--color-text-secondary)" x="80" y="356">Forward proxy path (outbound)</text>
+          <line x1="40" y1="374" x2="72" y2="374" stroke="#185FA5" stroke-width="1.5" marker-end="url(#a2)"/>
+          <text font-family="var(--font-sans)" font-size="13" fill="var(--color-text-secondary)" x="80" y="378">API / inbound request path</text>
+        </svg>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('Walk me through the full request lifecycle for a YouTube video load using this architecture')">Trace a YouTube video request</button>
+    </div>
+
+    <!-- LOAD BALANCER -->
+    <div id="panel-lb" class="panel" role="tabpanel" aria-labelledby="tab-lb" hidden>
+      <div class="section-label">Load balancer</div>
+      <p class="section-intro">Distributes incoming traffic across multiple backend servers — the single entry point for your server pool.</p>
+
+      <div class="card">
+        <div class="card-title"><span class="chip chip-blue">L4 / L7</span> What it does</div>
+        <div class="card-body">Prevents any single server from becoming a bottleneck. Sits in front of your server pool and routes each request to a healthy backend.</div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Algorithms</div>
+          <div class="feature-row"><div class="dot dot-blue"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Round robin</strong> — requests sent to each server in turn. Simple, no state.</div></div>
+          <div class="feature-row"><div class="dot dot-blue"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Least connections</strong> — route to the server with fewest active connections.</div></div>
+          <div class="feature-row"><div class="dot dot-blue"></div><div class="card-body"><strong style="color:var(--color-text-primary)">IP hash</strong> — same client IP always hits the same server (session stickiness).</div></div>
+          <div class="feature-row"><div class="dot dot-blue"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Weighted</strong> — high-spec servers receive a larger traffic share.</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">L4 vs L7</div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body"><strong style="color:var(--color-text-primary)">L4 (Transport)</strong> — routes by IP + port. Fast, but cannot inspect HTTP headers.</div></div>
+          <div class="feature-row"><div class="dot dot-amber"></div><div class="card-body"><strong style="color:var(--color-text-primary)">L7 (Application)</strong> — routes by URL, headers, cookies. Smarter — can send <code>/api/*</code> to one pool and <code>/static/*</code> to another.</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Health checks</div>
+        <div class="card-body">The load balancer periodically pings each server. If a server fails to respond, traffic stops going to it automatically. Once recovered, it is re-added to the pool — the core of high availability.</div>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('What is the difference between a hardware load balancer and a software load balancer like HAProxy or Nginx?')">Compare hardware vs software LBs</button>
+    </div>
+
+    <!-- REVERSE PROXY -->
+    <div id="panel-rp" class="panel" role="tabpanel" aria-labelledby="tab-rp" hidden>
+      <div class="section-label">Reverse proxy</div>
+      <p class="section-intro">Sits in front of your servers and accepts requests on their behalf — clients never see the real server addresses.</p>
+
+      <div class="card">
+        <div class="card-title"><span class="chip chip-red">Inbound</span> What it does</div>
+        <div class="card-body">Enables SSL termination, compression, caching, and request routing. Clients talk to the proxy; the proxy talks to your backends.</div>
+      </div>
+
+      <div class="flow-row">
+        <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Client</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="background:#FCEBEB;color:#501313;border:1px solid #A32D2D">Reverse proxy</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Server A</div>
+        <span class="flow-or">or</span>
+        <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Server B</div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Key capabilities</div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body">SSL termination — decrypt HTTPS once here, not on every backend</div></div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body">Request buffering — absorb slow clients before hitting origin</div></div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body">Response caching — serve repeated reads without touching backend</div></div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body">Compression — gzip/brotli responses to reduce bandwidth</div></div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body">Path-based routing — <code>/api</code> → app server, <code>/static</code> → file server</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">vs Forward proxy</div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Forward proxy</strong> — client knows about it. Hides the client from servers.</div></div>
+          <div class="feature-row"><div class="dot dot-red"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Reverse proxy</strong> — client doesn't know about it. Hides servers from clients.</div></div>
+        </div>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('Give me the Nginx config for a reverse proxy that handles SSL termination and routes /api to a Node backend')">Get Nginx SSL termination config</button>
+    </div>
+
+    <!-- FORWARD PROXY -->
+    <div id="panel-fp" class="panel" role="tabpanel" aria-labelledby="tab-fp" hidden>
+      <div class="section-label">Forward proxy</div>
+      <p class="section-intro">Sits between clients and the internet — the destination server sees the proxy's IP, not the client's.</p>
+
+      <div class="card">
+        <div class="card-title"><span class="chip chip-purple">Outbound</span> What it does</div>
+        <div class="card-body">Clients are configured to send requests through it. Used for access control, anonymity, monitoring, and caching outbound traffic.</div>
+      </div>
+
+      <div class="flow-row">
+        <div class="flow-box" style="background:#EEEDFE;color:#26215C;border:1px solid #534AB7">Client</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="background:#EEEDFE;color:#26215C;border:1px solid #534AB7">Forward proxy</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Internet</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Server</div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">Use cases</div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body">Corporate network filtering — block social media, log traffic</div></div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body">Anonymisation — mask user IPs (VPNs use this concept)</div></div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body">Geo-bypass — request appears to come from the proxy's country</div></div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body">Caching repeated outbound requests (e.g. package registries)</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Real examples</div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Squid</strong> — classic enterprise caching forward proxy</div></div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body"><strong style="color:var(--color-text-primary)">Zscaler</strong> — cloud forward proxy for zero-trust security</div></div>
+          <div class="feature-row"><div class="dot dot-purple"></div><div class="card-body"><strong style="color:var(--color-text-primary)">VPN services</strong> — forward proxy at the OS network level</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- API GATEWAY -->
+    <div id="panel-gw" class="panel" role="tabpanel" aria-labelledby="tab-gw" hidden>
+      <div class="section-label">API gateway</div>
+      <p class="section-intro">A specialised reverse proxy for APIs — the front door to your microservices.</p>
+
+      <div class="card">
+        <div class="card-title"><span class="chip chip-amber">Cross-cutting</span> What it does</div>
+        <div class="card-body">Handles authentication, rate limiting, request transformation, routing, and observability in one place — so every service doesn't have to implement these individually.</div>
+      </div>
+
+      <div class="three-col">
+        <div class="card">
+          <div class="card-title">Auth &amp; security</div>
+          <div class="card-body">JWT validation, OAuth2 token introspection, API key management, IP allowlisting, WAF integration</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Traffic control</div>
+          <div class="card-body">Rate limiting per client/IP, quota enforcement, circuit breaking, retry logic, canary routing</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Transformation</div>
+          <div class="card-body">Request/response header rewriting, protocol translation (REST↔gRPC), request aggregation, versioning</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">API gateway vs reverse proxy vs load balancer</div>
+        <div class="compare-wrap">
+          <div class="compare-row">
+            <div class="compare-cell compare-header">Feature</div>
+            <div class="compare-cell compare-header">API gateway</div>
+            <div class="compare-cell compare-header">Reverse proxy / LB</div>
+          </div>
+          <div class="compare-row">
+            <div class="compare-cell" style="color:var(--color-text-secondary)">Auth</div>
+            <div class="compare-cell">Full JWT / OAuth</div>
+            <div class="compare-cell">Basic (header passthrough)</div>
+          </div>
+          <div class="compare-row">
+            <div class="compare-cell" style="color:var(--color-text-secondary)">Rate limiting</div>
+            <div class="compare-cell">Per-user / plan</div>
+            <div class="compare-cell">IP-level only</div>
+          </div>
+          <div class="compare-row">
+            <div class="compare-cell" style="color:var(--color-text-secondary)">Routing</div>
+            <div class="compare-cell">By path, method, claims</div>
+            <div class="compare-cell">By path / host</div>
+          </div>
+          <div class="compare-row">
+            <div class="compare-cell" style="color:var(--color-text-secondary)">Complexity</div>
+            <div class="compare-cell">High (config + plugins)</div>
+            <div class="compare-cell">Low</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('Compare Kong, AWS API Gateway, and Nginx Plus as API gateway options')">Compare popular gateways</button>
+    </div>
+
+    <!-- CDN -->
+    <div id="panel-cdn" class="panel" role="tabpanel" aria-labelledby="tab-cdn" hidden>
+      <div class="section-label">Content delivery network (CDN)</div>
+      <p class="section-intro">A globally distributed network of edge servers that cache content close to users — reducing latency and absorbing traffic spikes.</p>
+
+      <div class="card">
+        <div class="card-title"><span class="chip chip-teal">Edge caching</span> What it does</div>
+        <div class="card-body">PoPs (Points of Presence) serve cached content from the nearest edge node instead of your origin server. Critical for video, images, and static assets at scale.</div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <div class="card-title">What gets cached</div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">Static assets — JS, CSS, images, fonts, videos</div></div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">API responses with Cache-Control headers</div></div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">HTML pages (with caution — can't cache per-user)</div></div>
+          <div class="feature-row"><div class="dot dot-amber"></div><div class="card-body">Dynamic content — usually bypassed via cache-busting rules</div></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Beyond caching</div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">DDoS mitigation at the edge (Cloudflare, Akamai)</div></div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">Edge compute — run logic (auth, redirects) at the PoP</div></div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">Image optimisation — resize/convert on the fly</div></div>
+          <div class="feature-row"><div class="dot dot-teal"></div><div class="card-body">TLS termination at the edge — faster handshakes</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Cache hit vs miss flow</div>
+        <div class="flow-row">
+          <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Client</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" style="background:#E1F5EE;color:#085041;border:1px solid #1D9E75">Edge PoP</div>
+          <div class="flow-arrow" style="color:#1D9E75">hit →</div>
+          <div class="flow-box" style="background:#E1F5EE;color:#085041">~5 ms</div>
+        </div>
+        <div class="flow-row">
+          <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Client</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" style="background:#E1F5EE;color:#085041;border:1px solid #1D9E75">Edge PoP</div>
+          <div class="flow-arrow" style="color:#E24B4A">miss →</div>
+          <div class="flow-box" style="background:var(--color-background-secondary);border:1px solid var(--color-border-tertiary)">Origin</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" style="background:#FCEBEB;color:#501313">~200 ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NGINX CONFIG -->
+    <div id="panel-nginx" class="panel" role="tabpanel" aria-labelledby="tab-nginx" hidden>
+      <div class="section-label">Nginx — practical configuration</div>
+      <p class="section-intro">Real Nginx configs demonstrating reverse proxy, traffic routing, and load balancing algorithms.</p>
+
+      <div class="card">
+        <div class="card-title">Reverse proxy with upstream pool</div>
+        <div class="nginx-block">
+<span class="kw">upstream</span> backend_pool {<br>
+&nbsp;&nbsp;<span class="kw">server</span> <span class="val">10.0.0.1:8080</span>;<br>
+&nbsp;&nbsp;<span class="kw">server</span> <span class="val">10.0.0.2:8080</span>;<br>
+&nbsp;&nbsp;<span class="kw">server</span> <span class="val">10.0.0.3:8080</span>;<br>
+&nbsp;&nbsp;<span class="kw">keepalive</span> <span class="val">32</span>;<br>
+}<br><br>
+<span class="kw">server</span> {<br>
+&nbsp;&nbsp;<span class="kw">listen</span> <span class="val">443 ssl http2</span>;<br>
+&nbsp;&nbsp;<span class="kw">server_name</span> <span class="val">api.example.com</span>;<br><br>
+&nbsp;&nbsp;<span class="comment"># SSL termination</span><br>
+&nbsp;&nbsp;<span class="kw">ssl_certificate</span> <span class="val">/etc/ssl/certs/cert.pem</span>;<br>
+&nbsp;&nbsp;<span class="kw">ssl_certificate_key</span> <span class="val">/etc/ssl/private/key.pem</span>;<br><br>
+&nbsp;&nbsp;<span class="kw">location</span> / {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">proxy_pass</span> <span class="val">http://backend_pool</span>;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">proxy_set_header</span> Host $host;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">proxy_set_header</span> X-Real-IP $remote_addr;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">proxy_set_header</span> X-Forwarded-For $proxy_add_x_forwarded_for;<br>
+&nbsp;&nbsp;}<br>
+}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Traffic routing — path-based</div>
+        <div class="nginx-block">
+<span class="kw">location</span> /api/ {<br>
+&nbsp;&nbsp;<span class="kw">proxy_pass</span> <span class="val">http://api_servers</span>;<br>
+}<br><br>
+<span class="kw">location</span> /static/ {<br>
+&nbsp;&nbsp;<span class="kw">root</span> <span class="val">/var/www</span>;<br>
+&nbsp;&nbsp;<span class="kw">expires</span> <span class="val">30d</span>;<br>
+&nbsp;&nbsp;<span class="kw">add_header</span> Cache-Control <span class="val">"public, immutable"</span>;<br>
+}<br><br>
+<span class="kw">location</span> /ws/ {<br>
+&nbsp;&nbsp;<span class="kw">proxy_pass</span> <span class="val">http://ws_servers</span>;<br>
+&nbsp;&nbsp;<span class="kw">proxy_http_version</span> <span class="val">1.1</span>;<br>
+&nbsp;&nbsp;<span class="kw">proxy_set_header</span> Upgrade $http_upgrade;<br>
+&nbsp;&nbsp;<span class="kw">proxy_set_header</span> Connection <span class="val">"upgrade"</span>;<br>
+}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Load balancing algorithms in Nginx</div>
+        <div class="nginx-block">
+<span class="comment"># Round robin (default — no directive needed)</span><br>
+<span class="kw">upstream</span> rr_pool { <span class="kw">server</span> <span class="val">s1:8080</span>; <span class="kw">server</span> <span class="val">s2:8080</span>; }<br><br>
+<span class="comment"># Least connections</span><br>
+<span class="kw">upstream</span> lc_pool { <span class="kw">least_conn</span>; <span class="kw">server</span> <span class="val">s1:8080</span>; <span class="kw">server</span> <span class="val">s2:8080</span>; }<br><br>
+<span class="comment"># IP hash (sticky sessions)</span><br>
+<span class="kw">upstream</span> sticky_pool { <span class="kw">ip_hash</span>; <span class="kw">server</span> <span class="val">s1:8080</span>; <span class="kw">server</span> <span class="val">s2:8080</span>; }<br><br>
+<span class="comment"># Weighted</span><br>
+<span class="kw">upstream</span> wt_pool {<br>
+&nbsp;&nbsp;<span class="kw">server</span> <span class="val">s1:8080 weight=3</span>;<br>
+&nbsp;&nbsp;<span class="kw">server</span> <span class="val">s2:8080 weight=1</span>;<br>
+}
+        </div>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('Write a complete Nginx config with rate limiting, gzip compression, and health check endpoints')">Generate complete production config</button>
+    </div>
+
+    <!-- REAL EXAMPLES -->
+    <div id="panel-real" class="panel" role="tabpanel" aria-labelledby="tab-real" hidden>
+      <div class="section-label">Real-world architecture examples</div>
+      <p class="section-intro">How Netflix, YouTube, and Amazon use each networking component at global scale.</p>
+
+      <div class="realworld-grid">
+        <div class="brand-card">
+          <div class="brand-name" style="color:#E50914">Netflix</div>
+          <div class="brand-item"><span class="dot dot-teal"></span><span><strong>CDN:</strong> Open Connect — ISP-embedded appliances serving ~99% of traffic</span></div>
+          <div class="brand-item"><span class="dot dot-amber"></span><span><strong>API Gateway:</strong> Zuul — auth, rate limiting, A/B routing</span></div>
+          <div class="brand-item"><span class="dot dot-blue"></span><span><strong>Load balancer:</strong> Ribbon + Eureka (client-side) across AWS regions</span></div>
+          <div class="brand-item"><span class="dot dot-red"></span><span><strong>Reverse proxy:</strong> Envoy sidecar per microservice (service mesh)</span></div>
+        </div>
+        <div class="brand-card">
+          <div class="brand-name" style="color:#FF0000">YouTube</div>
+          <div class="brand-item"><span class="dot dot-teal"></span><span><strong>CDN:</strong> Google PoPs in 200+ countries; video segments cached at edge</span></div>
+          <div class="brand-item"><span class="dot dot-amber"></span><span><strong>API Gateway:</strong> Cloud Endpoints + Apigee (YouTube Data API v3)</span></div>
+          <div class="brand-item"><span class="dot dot-blue"></span><span><strong>Load balancer:</strong> Google Cloud LB — anycast IP to nearest datacenter</span></div>
+          <div class="brand-item"><span class="dot dot-red"></span><span><strong>Reverse proxy:</strong> GFE (Google Front End) terminates SSL</span></div>
+        </div>
+        <div class="brand-card">
+          <div class="brand-name" style="color:#FF9900">Amazon</div>
+          <div class="brand-item"><span class="dot dot-teal"></span><span><strong>CDN:</strong> CloudFront — 450+ PoPs for images, JS, CSS</span></div>
+          <div class="brand-item"><span class="dot dot-amber"></span><span><strong>API Gateway:</strong> AWS API Gateway (Marketplace API)</span></div>
+          <div class="brand-item"><span class="dot dot-blue"></span><span><strong>Load balancer:</strong> ALB (L7) + NLB (L4) for internal traffic</span></div>
+          <div class="brand-item"><span class="dot dot-purple"></span><span><strong>Forward proxy:</strong> Squid for internal developer traffic control</span></div>
+        </div>
+      </div>
+
+      <div style="margin-top:20px">
+        <div class="section-label">Component → AWS / GCP managed service mapping</div>
+        <div class="card">
+          <div class="compare-wrap">
+            <div class="compare-row">
+              <div class="compare-cell compare-header">Component</div>
+              <div class="compare-cell compare-header">AWS</div>
+              <div class="compare-cell compare-header">GCP</div>
+            </div>
+            <div class="compare-row">
+              <div class="compare-cell" style="color:var(--color-text-secondary)">Load balancer</div>
+              <div class="compare-cell">ALB / NLB / CLB</div>
+              <div class="compare-cell">Cloud Load Balancing</div>
+            </div>
+            <div class="compare-row">
+              <div class="compare-cell" style="color:var(--color-text-secondary)">Reverse proxy</div>
+              <div class="compare-cell">Nginx on EC2 / ECS</div>
+              <div class="compare-cell">Nginx on GCE / Cloud Run</div>
+            </div>
+            <div class="compare-row">
+              <div class="compare-cell" style="color:var(--color-text-secondary)">API gateway</div>
+              <div class="compare-cell">API Gateway / Kong</div>
+              <div class="compare-cell">Apigee / Cloud Endpoints</div>
+            </div>
+            <div class="compare-row">
+              <div class="compare-cell" style="color:var(--color-text-secondary)">CDN</div>
+              <div class="compare-cell">CloudFront</div>
+              <div class="compare-cell">Cloud CDN</div>
+            </div>
+            <div class="compare-row">
+              <div class="compare-cell" style="color:var(--color-text-secondary)">Forward proxy</div>
+              <div class="compare-cell">Squid on EC2</div>
+              <div class="compare-cell">Squid on GCE</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button class="action-btn" onclick="sendPrompt('Draw a detailed Netflix architecture diagram showing all these networking components together')">Generate Netflix architecture diagram</button>
+    </div>
+
+  </div><!-- /slide-area -->
+
+  <footer class="slide-footer">
+    <button class="slide-nav-btn" id="btn-prev" aria-label="Previous slide" disabled>
+      ← Previous
+    </button>
+    <span class="keyboard-hint">Use <kbd>←</kbd> <kbd>→</kbd> arrow keys or <kbd>1</kbd>–<kbd>8</kbd> to navigate</span>
+    <span class="slide-counter" id="slide-counter" aria-live="polite">1 / 8</span>
+    <button class="slide-nav-btn" id="btn-next" aria-label="Next slide">
+      Next →
+    </button>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  const SLIDES = ['overview', 'lb', 'rp', 'fp', 'gw', 'cdn', 'nginx', 'real'];
+  let currentIndex = 0;
+
+  const progressFill  = document.getElementById('progress-fill');
+  const slideCounter  = document.getElementById('slide-counter');
+  const btnPrev       = document.getElementById('btn-prev');
+  const btnNext       = document.getElementById('btn-next');
+  const progressBar   = document.querySelector('.progress-bar');
+
+  function showSlide(id, btn) {
+    const index = SLIDES.indexOf(id);
+    if (index === -1) return;
+    currentIndex = index;
+
+    document.querySelectorAll('.panel').forEach(p => {
+      p.classList.remove('active');
+      p.hidden = true;
+    });
+    document.querySelectorAll('.nav-btn').forEach(b => {
+      b.classList.remove('active');
+      b.setAttribute('aria-selected', 'false');
+    });
+
+    const panel = document.getElementById('panel-' + id);
+    panel.classList.add('active');
+    panel.hidden = false;
+
+    const activeBtn = btn || document.querySelector('[data-slide="' + id + '"]');
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      activeBtn.setAttribute('aria-selected', 'true');
+    }
+
+    const pct = ((index + 1) / SLIDES.length) * 100;
+    progressFill.style.width = pct + '%';
+    progressBar.setAttribute('aria-valuenow', index + 1);
+    slideCounter.textContent = (index + 1) + ' / ' + SLIDES.length;
+
+    btnPrev.disabled = index === 0;
+    btnNext.disabled = index === SLIDES.length - 1;
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function nextSlide() {
+    if (currentIndex < SLIDES.length - 1) showSlide(SLIDES[currentIndex + 1]);
+  }
+
+  function prevSlide() {
+    if (currentIndex > 0) showSlide(SLIDES[currentIndex - 1]);
+  }
+
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => showSlide(btn.dataset.slide, btn));
+  });
+
+  btnPrev.addEventListener('click', prevSlide);
+  btnNext.addEventListener('click', nextSlide);
+
+  document.querySelectorAll('.diagram-node').forEach(node => {
+    const go = () => { if (node.dataset.goto) showSlide(node.dataset.goto); };
+    node.addEventListener('click', go);
+    node.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
+    });
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input, textarea, [contenteditable]')) return;
+
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault(); nextSlide();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault(); prevSlide();
+    } else {
+      const num = parseInt(e.key, 10);
+      if (num >= 1 && num <= SLIDES.length) showSlide(SLIDES[num - 1]);
+    }
+  });
+
+  window.sendPrompt = window.sendPrompt || function (msg) {
+    alert('Ask in chat: ' + msg);
+  };
+
+  showSlide('overview');
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,19 @@
+/* Demo stylesheet — served from CDN origin */
+.demo-banner {
+  background: linear-gradient(90deg, #3b82f6, #06b6d4);
+  color: white;
+  padding: 1rem;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+
+.demo-banner h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.demo-banner p {
+  margin: 0.25rem 0 0;
+  opacity: 0.9;
+  font-size: 0.875rem;
+}
